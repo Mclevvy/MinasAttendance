@@ -1,0 +1,30 @@
+{
+  "name": "minas-attendance",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "web": "expo start --web",
+    "test": "node --test tests/validate.test.js tests/rows.test.js"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~3.2.3",
+    "@react-native-async-storage/async-storage": "1.23.1",
+    "expo": "~51.0.28",
+    "expo-file-system": "~17.0.1",
+    "expo-font": "~12.0.10",
+    "expo-sharing": "~12.0.1",
+    "expo-status-bar": "~1.12.1",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-web": "~0.19.10",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0"
+  }
+}
