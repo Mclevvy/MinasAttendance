@@ -20,4 +20,5 @@ Done. A check: paste the `/exec` URL into a browser tab — you should see the r
 Rules
 - Change the sheet layout and you break the columns. Keep the order: **Name | Time | Device | Seminar**.
 - Redeploy as a new version after ANY script change, or the app keeps the old one.
+- The app's Clear button now wipes the WHOLE sheet on purpose (all PCs go empty). Always Export Excel first.
 - Two students may share a name; the app blocks same-day duplicates on that PC only. The Sheet keeps every row.

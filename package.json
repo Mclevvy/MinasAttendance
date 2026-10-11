@@ -8,7 +8,7 @@
     "start": "expo start",
     "android": "expo start --android",
     "web": "expo start --web",
-    "test": "node --test tests/validate.test.js tests/rows.test.js"
+    "test": "node --test tests/validate.test.js tests/rows.test.js tests/sheets.test.js"
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.3",

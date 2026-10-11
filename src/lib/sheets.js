@@ -44,6 +44,20 @@ export async function fetchRemoteRows(execUrl) {
   }
 }
 
+// Full reset for the next session: wipes the shared Sheet (teacher already
+// exported Excel first). {ok} — never throws; ok:false means names return on next poll.
+export async function clearSheet(execUrl) {
+  if (!execUrl) return { ok: false };
+  try {
+    const res = await fetch(execUrl + '?action=clear');
+    if (!res.ok) return { ok: false };
+    const data = await res.json();
+    return { ok: !!data && data.cleared === true };
+  } catch {
+    return { ok: false };
+  }
+}
+
 // Sends queued rows oldest-first; rows that fail stay queued for the next attempt.
 // shortcut: a permanently broken URL retries forever — teacher clears the queue via Clear list.
 export async function flushOutbox(execUrl) {

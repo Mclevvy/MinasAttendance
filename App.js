@@ -7,7 +7,7 @@ import NameList from './src/components/NameList';
 import SuccessBadge from './src/components/SuccessBadge';
 import { checkName } from './src/lib/validate';
 import { isDuplicate, makeRow, mergeRows, sortNewest } from './src/lib/rows';
-import { appendToSheet, fetchRemoteRows, flushOutbox } from './src/lib/sheets';
+import { appendToSheet, clearSheet, fetchRemoteRows, flushOutbox } from './src/lib/sheets';
 import { exportExcel } from './src/lib/excel';
 import { DEFAULT_SETTINGS, clearLocal, loadOutbox, loadRows, loadSettings, saveRows, saveSettings } from './src/lib/store';
 
@@ -25,6 +25,9 @@ export default function App() {
   const [lastAdded, setLastAdded] = useState(null);
   const [shared, setShared] = useState([]); // rows from the other PCs, polled from the Sheet
   const [syncedAt, setSyncedAt] = useState(null);
+  const [sending, setSending] = useState(false); // blocks double-tap double submits
+  const [clearing, setClearing] = useState(false);
+  const sendingRef = useRef(false);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
@@ -66,21 +69,29 @@ export default function App() {
   }
 
   async function handleAdd() {
+    if (sendingRef.current) return; // kids tap fast — one submit at a time
+    sendingRef.current = true;
+    setSending(true);
     setError('');
-    const v = checkName(name, rows.map((r) => r.name));
-    if (!v.ok) { setError(v.reason); return; }
-    if (isDuplicate(rows, v.name)) { setError('Already signed in!'); return; }
-    const row = makeRow(v.name, settings.device, settings.webinarTitle);
-    const res = await appendToSheet(settings.execUrl, row).catch(() => ({ ok: false, queued: true }));
-    const saved = { ...row, queued: res.queued };
-    const next = [...rows, saved];
-    setRows(next);
-    saveRows(next).catch(() => {});
-    setQueued((await loadOutbox().catch(() => [])).length);
-    setName('');
-    setLastAdded(`${saved.name}|${saved.time}`);
-    setSuccess(saved);
-    refreshShared(); // show the new name (and others') without waiting for the next poll
+    try {
+      const v = checkName(name, rows.map((r) => r.name));
+      if (!v.ok) { setError(v.reason); return; }
+      if (isDuplicate(rows, v.name)) { setError('Already signed in!'); return; }
+      const row = makeRow(v.name, settings.device, settings.webinarTitle);
+      const res = await appendToSheet(settings.execUrl, row).catch(() => ({ ok: false, queued: true }));
+      const saved = { ...row, queued: res.queued };
+      const next = [...rows, saved];
+      setRows(next);
+      saveRows(next).catch(() => {});
+      setQueued((await loadOutbox().catch(() => [])).length);
+      setName('');
+      setLastAdded(`${saved.name}|${saved.time}`);
+      setSuccess(saved);
+      refreshShared(); // show the new name (and others') without waiting for the next poll
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
   }
 
   async function handleExport() {
@@ -91,10 +102,23 @@ export default function App() {
 
   async function handleClear() {
     if (!confirmClear) { setConfirmClear(true); return; }
-    await clearLocal().catch(() => {});
-    setRows([]);
-    setQueued(0);
-    setConfirmClear(false);
+    // Full reset: this PC + the shared Sheet, or names return on the next poll.
+    setClearing(true);
+    setError('');
+    try {
+      await clearLocal().catch(() => {});
+      const res = await clearSheet(settingsRef.current.execUrl).catch(() => ({ ok: false }));
+      setRows([]);
+      setShared([]);
+      setQueued(0);
+      setLastAdded(null);
+      if (!res.ok && settingsRef.current.execUrl) {
+        setError('This PC is clear, but the shared sheet did not clear — check internet, or names will return.');
+      }
+    } finally {
+      setConfirmClear(false);
+      setClearing(false);
+    }
   }
 
   const tabs = ['Sign In', 'List', 'Settings'];
@@ -120,7 +144,7 @@ export default function App() {
           <View style={styles.card}>
             <PixelInput label="TYPE YOUR NAME" value={name} onChange={setName} onSubmit={handleAdd} />
             {error ? <Text role="alert" style={styles.errorText}>{error}</Text> : null}
-            <PixelButton title="ADD ★" onPress={handleAdd} accessibilityLabel="Add my name" />
+            <PixelButton title="ADD ★" onPress={handleAdd} disabled={sending} accessibilityLabel="Add my name" />
             <Text style={styles.rowMeta}>{merged.length} SIGNED IN{live ? ' · LIVE' : ''}{queued ? ` · ${queued} QUEUED` : ''}</Text>
           </View>
         )}
@@ -130,8 +154,9 @@ export default function App() {
             <Text style={styles.sub}>{merged.length} SIGNED IN</Text>
             <Text style={styles.rowMeta}>{live ? (syncedAt ? `LIVE · all PCs · synced ${new Date(syncedAt).toLocaleTimeString()}` : 'LIVE · connecting…') : 'THIS PC ONLY · paste the Sheet link in Settings for the shared list'}</Text>
             <NameList rows={sortNewest(merged)} loading={false} highlight={lastAdded} />
+            {error ? <Text role="alert" style={styles.errorText}>{error}</Text> : null}
             <PixelButton title="Export Excel" variant="secondary" onPress={handleExport} accessibilityLabel="Export attendance to Excel" />
-            <PixelButton title={confirmClear ? 'Tap again to Clear' : 'Clear'} variant="secondary" onPress={handleClear} accessibilityLabel={confirmClear ? 'Confirm clear list' : 'Clear list'} />
+            <PixelButton title={clearing ? 'Clearing…' : confirmClear ? 'Tap again to Clear ALL' : 'Clear'} variant="secondary" onPress={handleClear} disabled={clearing} accessibilityLabel={confirmClear ? 'Confirm clear all names everywhere' : 'Clear list'} />
           </View>
         )}
 

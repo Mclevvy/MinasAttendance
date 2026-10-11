@@ -16,8 +16,14 @@ function doPost(e) {
 
 // Lets every device show one live list: returns the newest 500 rows as JSON.
 // After pasting this, redeploy as a NEW version or the app keeps the old script.
-function doGet() {
-  var values = SpreadsheetApp.openById(SHEET_ID).getSheets()[0].getDataRange().getValues();
+// ?action=clear wipes the whole sheet (teacher runs Clear in the app after exporting Excel).
+function doGet(e) {
+  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheets()[0];
+  if (e && e.parameter && e.parameter.action === 'clear') {
+    sheet.clearContents();
+    return ContentService.createTextOutput('{"cleared":true}').setMimeType(ContentService.MimeType.JSON);
+  }
+  var values = sheet.getDataRange().getValues();
   var rows = [];
   for (var i = 0; i < values.length && rows.length < 500; i++) {
     var name = String(values[i][0] || '').trim();
