@@ -25,6 +25,25 @@ export async function appendToSheet(execUrl, row) {
   }
 }
 
+// Reads every row other devices appended. {rows, ok} — ok:false on any
+// failure (offline, not deployed yet, old script without doGet); never throws.
+export async function fetchRemoteRows(execUrl) {
+  if (!execUrl) return { rows: [], ok: false };
+  try {
+    const res = await fetch(execUrl);
+    if (!res.ok) return { rows: [], ok: false };
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : data.rows;
+    if (!Array.isArray(list)) return { rows: [], ok: false };
+    const rows = list
+      .filter((r) => r && typeof r.name === 'string' && r.name.trim() && typeof r.time === 'string')
+      .map((r) => ({ name: r.name, time: r.time, device: r.device ?? '', webinar: r.webinar ?? '' }));
+    return { rows, ok: true };
+  } catch {
+    return { rows: [], ok: false };
+  }
+}
+
 // Sends queued rows oldest-first; rows that fail stay queued for the next attempt.
 // shortcut: a permanently broken URL retries forever — teacher clears the queue via Clear list.
 export async function flushOutbox(execUrl) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ImageBackground, ScrollView, Text, TextInput, View } from 'react-native';
 import { loadPixelFont, styles } from './src/theme';
 import PixelButton from './src/components/PixelButton';
@@ -6,10 +6,12 @@ import PixelInput from './src/components/PixelInput';
 import NameList from './src/components/NameList';
 import SuccessBadge from './src/components/SuccessBadge';
 import { checkName } from './src/lib/validate';
-import { isDuplicate, makeRow, sortNewest } from './src/lib/rows';
-import { appendToSheet, flushOutbox } from './src/lib/sheets';
+import { isDuplicate, makeRow, mergeRows, sortNewest } from './src/lib/rows';
+import { appendToSheet, fetchRemoteRows, flushOutbox } from './src/lib/sheets';
 import { exportExcel } from './src/lib/excel';
 import { DEFAULT_SETTINGS, clearLocal, loadOutbox, loadRows, loadSettings, saveRows, saveSettings } from './src/lib/store';
+
+const POLL_MS = 10000; // live shared list refresh — cheap GET, Sheet stays the source of truth
 
 export default function App() {
   const [rows, setRows] = useState([]);
@@ -21,6 +23,20 @@ export default function App() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [queued, setQueued] = useState(0);
   const [lastAdded, setLastAdded] = useState(null);
+  const [shared, setShared] = useState([]); // rows from the other PCs, polled from the Sheet
+  const [syncedAt, setSyncedAt] = useState(null);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
+  async function refreshShared() {
+    const execUrl = settingsRef.current.execUrl;
+    if (!execUrl) return;
+    const res = await fetchRemoteRows(execUrl).catch(() => null);
+    if (res && res.ok) {
+      setShared(res.rows);
+      setSyncedAt(Date.now());
+    }
+  }
 
   useEffect(() => {
     loadPixelFont().catch(() => {});
@@ -32,14 +48,21 @@ export default function App() {
       if (s.execUrl) {
         const res = await flushOutbox(s.execUrl).catch(() => null);
         if (res) setQueued(res.queued ? (await loadOutbox()).length : 0);
+        refreshShared();
       }
     })();
+    const timer = setInterval(refreshShared, POLL_MS);
+    return () => clearInterval(timer);
   }, []);
+
+  const merged = useMemo(() => mergeRows(rows, shared), [rows, shared]);
+  const live = !!settings.execUrl;
 
   function setField(key, value) {
     const next = { ...settings, [key]: value };
     setSettings(next);
     saveSettings(next).catch(() => {});
+    if (key === 'execUrl' && value) setTimeout(refreshShared, 0); // connect the live list right away
   }
 
   async function handleAdd() {
@@ -57,11 +80,12 @@ export default function App() {
     setName('');
     setLastAdded(`${saved.name}|${saved.time}`);
     setSuccess(saved);
+    refreshShared(); // show the new name (and others') without waiting for the next poll
   }
 
   async function handleExport() {
     setError('');
-    const res = await exportExcel(rows).catch(() => ({ ok: false }));
+    const res = await exportExcel(sortNewest(merged)).catch(() => ({ ok: false }));
     if (!res.ok) setError('Export failed — try again.');
   }
 
@@ -97,14 +121,15 @@ export default function App() {
             <PixelInput label="TYPE YOUR NAME" value={name} onChange={setName} onSubmit={handleAdd} />
             {error ? <Text role="alert" style={styles.errorText}>{error}</Text> : null}
             <PixelButton title="ADD ★" onPress={handleAdd} accessibilityLabel="Add my name" />
-            <Text style={styles.rowMeta}>{rows.length} SIGNED IN{queued ? ` · ${queued} QUEUED` : ''}</Text>
+            <Text style={styles.rowMeta}>{merged.length} SIGNED IN{live ? ' · LIVE' : ''}{queued ? ` · ${queued} QUEUED` : ''}</Text>
           </View>
         )}
 
         {tab === 'List' && (
           <View style={styles.card}>
-            <Text style={styles.sub}>{rows.length} SIGNED IN</Text>
-            <NameList rows={sortNewest(rows)} loading={false} highlight={lastAdded} />
+            <Text style={styles.sub}>{merged.length} SIGNED IN</Text>
+            <Text style={styles.rowMeta}>{live ? (syncedAt ? `LIVE · all PCs · synced ${new Date(syncedAt).toLocaleTimeString()}` : 'LIVE · connecting…') : 'THIS PC ONLY · paste the Sheet link in Settings for the shared list'}</Text>
+            <NameList rows={sortNewest(merged)} loading={false} highlight={lastAdded} />
             <PixelButton title="Export Excel" variant="secondary" onPress={handleExport} accessibilityLabel="Export attendance to Excel" />
             <PixelButton title={confirmClear ? 'Tap again to Clear' : 'Clear'} variant="secondary" onPress={handleClear} accessibilityLabel={confirmClear ? 'Confirm clear list' : 'Clear list'} />
           </View>

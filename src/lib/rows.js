@@ -26,3 +26,21 @@ export function isDuplicate(rows = [], name, now = new Date()) {
 export function sortNewest(rows = []) {
   return [...rows].sort((a, b) => Date.parse(b.time) - Date.parse(a.time));
 }
+
+// Merges this device's rows with rows polled from the shared Sheet.
+// Same name+time on both sides counts once; the local copy wins so the
+// QUEUED badge survives until the row is confirmed in the Sheet.
+const rowKey = (r) => `${cleanName(r.name).toLowerCase()}|${r.time}`;
+
+export function mergeRows(local = [], remote = []) {
+  const seen = new Set(local.map(rowKey));
+  const merged = [...local];
+  for (const r of remote) {
+    if (!r || !r.name || !r.time) continue;
+    if (!seen.has(rowKey(r))) {
+      seen.add(rowKey(r));
+      merged.push({ name: cleanName(r.name), time: r.time, device: r.device ?? '', webinar: r.webinar ?? '' });
+    }
+  }
+  return merged;
+}
