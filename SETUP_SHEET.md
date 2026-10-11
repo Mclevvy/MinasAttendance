@@ -11,7 +11,7 @@ This is what makes **all computers share one live list**.
    - Who has access: **Anyone** (required — the app is not signed in)
    - Click **Deploy**, then **Authorize access** (Google warns it is unverified → *Advanced → Go to … (unsafe)*).
 4. Copy the **Web app URL**. It ends in `/exec`.
-5. In the app: **Settings → Sheet URL**, paste the URL, Save. The list turns LIVE within seconds.
+5. In the app: **Settings → Sheet URL** is already filled in — just open Settings once to confirm, then Save.
 
 Already deployed before? The live list needs the NEW script: paste the new code, then **Deploy → Manage deployments → edit ✏️ → Version: New version → Deploy**. Same URL, no need to re-paste it in the app.
 

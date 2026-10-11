@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS = {
   webinarTitle: 'PROJECT BYTE: BASIC YOUTH TECHNOLOGY EDUCATION',
   webinarDate: '',
   device: 'PC-1',
-  execUrl: '',
+  execUrl: 'https://script.google.com/macros/s/AKfycbysts0M1RheH_dzwFvhD9gEcPmEX15CfG7uhwvqPM7_hWoSmMORdjvRec0NO2A_DHYp/exec',
   sheetId: '1yKBumyrb_3grSD5siw7iJmZJV57KRuHYgpQS5S3ICD4',
 };
 
@@ -34,7 +34,12 @@ export const loadRows = () => readJson(K.rows, []);
 export const saveRows = (rows) => writeJson(K.rows, rows);
 
 // Defaults always win over missing keys, so new settings appear for old installs.
-export const loadSettings = async () => ({ ...DEFAULT_SETTINGS, ...(await readJson(K.settings, {})) });
+// An empty saved URL also falls back to the default (teacher never pasted one).
+export const loadSettings = async () => {
+  const stored = await readJson(K.settings, {});
+  if (!stored.execUrl) delete stored.execUrl;
+  return { ...DEFAULT_SETTINGS, ...stored };
+};
 export const saveSettings = (settings) => writeJson(K.settings, { ...DEFAULT_SETTINGS, ...settings });
 
 export const loadOutbox = () => readJson(K.outbox, []);
